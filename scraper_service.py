@@ -2,7 +2,6 @@ import json
 import re
 from curl_cffi import requests
 from bs4 import BeautifulSoup
-from playwright_stealth import stealth_sync
 from playwright.sync_api import sync_playwright
 
 def get_headers():

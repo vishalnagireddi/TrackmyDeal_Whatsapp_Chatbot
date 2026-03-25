@@ -7,11 +7,15 @@ load_dotenv()
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/trackmydeal")
 
-# Connect to MongoDB with explicit TLS and retry settings
+import certifi
+ca = certifi.where()
+
+# Connect to MongoDB with explicit SSL CA certs from certifi
 client = MongoClient(
     MONGO_URI, 
     serverSelectionTimeoutMS=5000,
     tls=True,
+    tlsCAFile=ca,
     retryReads=True
 )
 # Explicitly specify the database name to avoid ConfigurationError if not in URI

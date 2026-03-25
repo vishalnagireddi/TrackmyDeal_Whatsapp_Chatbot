@@ -6,5 +6,5 @@ set -o errexit
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Install Playwright browser and dependencies
-playwright install --with-deps firefox
+# Install Playwright browser
+playwright install firefox

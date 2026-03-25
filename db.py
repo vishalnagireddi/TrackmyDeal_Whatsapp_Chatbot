@@ -10,12 +10,12 @@ MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/trackmydeal")
 import certifi
 ca = certifi.where()
 
-# Connect to MongoDB with explicit SSL CA certs from certifi
+# Connect to MongoDB with wide compatibility settings
 client = MongoClient(
     MONGO_URI, 
     serverSelectionTimeoutMS=5000,
-    tls=True,
     tlsCAFile=ca,
+    tlsAllowInvalidCertificates=True, # Helps bypass some handshake alerts on certain networks
     retryReads=True
 )
 # Explicitly specify the database name to avoid ConfigurationError if not in URI

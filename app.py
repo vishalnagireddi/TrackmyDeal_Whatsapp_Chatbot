@@ -8,13 +8,20 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# Initialize MongoDB and Scheduler
-with app.app_context():
-    init_db()
-    os.makedirs(os.path.join(app.root_path, 'static', 'graphs'), exist_ok=True)
+# Initialize MongoDB and Scheduler safely
+try:
+    print("Initializing components...")
+    with app.app_context():
+        init_db()
+        os.makedirs(os.path.join(app.root_path, 'static', 'graphs'), exist_ok=True)
     
-# Start background price tracking
-start_scheduler()
+    # Start background price tracking
+    start_scheduler()
+    print("All components initialized successfully.")
+except Exception as e:
+    print(f"CRITICAL ERROR during app initialization: {e}")
+    import traceback
+    traceback.print_exc()
 
 @app.route("/", methods=["GET"])
 def health_check():

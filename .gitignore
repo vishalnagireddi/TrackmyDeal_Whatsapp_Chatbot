@@ -1,0 +1,24 @@
+# Environment variables
+.env
+
+# Python specific
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env/
+
+# IDE specific
+.vscode/
+.idea/
+
+# Logging and temp files
+*.log
+debug_requests.html
+debug_playwright.html
+debug_firefox.html
+mobile_test.html
+test_graph.png
+*.png

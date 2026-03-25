@@ -9,7 +9,8 @@ MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/trackmydeal")
 
 # Connect to MongoDB with a 5-second timeout to prevent blocking the app start
 client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
-db = client.get_default_database()
+# Explicitly specify the database name to avoid ConfigurationError if not in URI
+db = client["trackmydeal"]
 
 # Define collections
 users_collection = db["users"]

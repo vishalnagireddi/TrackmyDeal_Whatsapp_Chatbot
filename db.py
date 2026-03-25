@@ -7,8 +7,13 @@ load_dotenv()
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/trackmydeal")
 
-# Connect to MongoDB with a 5-second timeout to prevent blocking the app start
-client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+# Connect to MongoDB with explicit TLS and retry settings
+client = MongoClient(
+    MONGO_URI, 
+    serverSelectionTimeoutMS=5000,
+    tls=True,
+    retryReads=True
+)
 # Explicitly specify the database name to avoid ConfigurationError if not in URI
 db = client["trackmydeal"]
 

@@ -206,6 +206,12 @@ def scrape_with_playwright(url):
             # Navigate and wait for networking to settle
             page.goto(url, wait_until="domcontentloaded", timeout=25000)
             
+            # Wait for common price selectors to appear (Amazon specific)
+            try:
+                page.wait_for_selector(".a-price-whole", timeout=8000)
+            except:
+                pass # Continue to generic extraction if not found
+            
             # Scroll down to trigger lazy loading and wait with random jitter
             page.evaluate("window.scrollTo(0, 500)")
             post_scroll_jitter = random.uniform(2.5, 4.5)

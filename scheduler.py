@@ -25,9 +25,16 @@ def track_prices():
             print(f"Could not extract price for {url}")
             continue
             
-        # Optional: Save base metadata if it wasn't there
+        # Update the main product document with the current price and metadata
+        update_fields = {
+            "price": current_price,
+            "last_updated": datetime.now(timezone.utc)
+        }
         if not product.get("title") and data.get("title"):
-             products_collection.update_one({"_id": product["_id"]}, {"$set": {"title": data["title"], "image_url": data.get("image")}})
+            update_fields["title"] = data["title"]
+            update_fields["image_url"] = data.get("image")
+            
+        products_collection.update_one({"_id": product["_id"]}, {"$set": update_fields})
              
         product_title = product.get("title") or data.get("title") or "Your Tracked Product"
         product_id = product["_id"]

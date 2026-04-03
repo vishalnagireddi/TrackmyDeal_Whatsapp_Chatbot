@@ -24,7 +24,12 @@ def process_new_link_job(url, phone_nm, base_url):
     products_collection.update_one(
         {"url": url},
         {
-            "$set": {"title": title, "image_url": image_url},
+            "$set": {
+                "title": title, 
+                "image_url": image_url,
+                "price": price,
+                "last_updated": datetime.now(timezone.utc)
+            },
             "$addToSet": {"users_tracking": {"phone": phone_nm}}
         },
         upsert=True

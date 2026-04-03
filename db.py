@@ -11,7 +11,8 @@ import certifi
 ca = certifi.where()
 
 # Connect to MongoDB using the URI directly for maximum compatibility
-client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+# connect=False prevents the app from blocking until the first real DB call
+client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000, tls=True, connect=False)
 # Explicitly specify the database name
 db = client["trackmydeal"]
 

@@ -1,5 +1,7 @@
 import json
 import re
+import time
+import random
 from curl_cffi import requests
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
@@ -197,14 +199,17 @@ def scrape_with_playwright(url):
             
             page = context.new_page()
             
-            # stealth_sync is for chromium, may throw errors on firefox so omitting
+            # Add early random jitter to avoid fingerprinting timing patterns
+            jitter = random.uniform(1.0, 3.0)
+            page.wait_for_timeout(int(jitter * 1000))
             
             # Navigate and wait for networking to settle
             page.goto(url, wait_until="domcontentloaded", timeout=25000)
             
-            # Scroll down to trigger lazy loading and wait
+            # Scroll down to trigger lazy loading and wait with random jitter
             page.evaluate("window.scrollTo(0, 500)")
-            page.wait_for_timeout(3500)
+            post_scroll_jitter = random.uniform(2.5, 4.5)
+            page.wait_for_timeout(int(post_scroll_jitter * 1000))
             
             content = page.content()
             soup = BeautifulSoup(content, 'html.parser')

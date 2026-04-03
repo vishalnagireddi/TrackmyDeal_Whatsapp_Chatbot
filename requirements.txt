@@ -3,8 +3,8 @@ python-dotenv
 pymongo
 requests
 playwright
-playwright-stealth
 beautifulsoup4
+dnspython
 pandas
 scikit-learn
 matplotlib

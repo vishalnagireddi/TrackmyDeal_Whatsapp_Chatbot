@@ -54,7 +54,7 @@ def track_prices():
         if current_price < lowest_price and lowest_price != float('inf'):
             for user in users_tracking:
                 phone = user.get("phone")
-                msg = f"🚨 *PRICE DROP ALERT!* 🚨\n\n{product_title} has reached a new all-time low of *₹{current_price}*! (Previous low: ₹{lowest_price})\n\nBuy it now: {url}"
+                msg = f"🚨 *PRICE DROP!* {product_title} is now *₹{current_price}*! (Was ₹{lowest_price})\n\nBuy it here: {url}"
                 send_whatsapp_message(phone, msg)
                 
         time.sleep(2) # be nice to sites

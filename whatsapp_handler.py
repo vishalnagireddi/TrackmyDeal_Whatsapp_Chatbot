@@ -1,5 +1,5 @@
 import os
-from db import users_collection, products_collection
+from db import users_collection, products_collection, price_history_collection
 from prediction_service import predict_future_price, get_product_trend_summary
 from search_comparison_service import get_comparison_message
 import requests
@@ -99,76 +99,90 @@ def handle_incoming_message(webhook_data):
 
     state = user.get("state", "NEW")
     response_msg = ""
-    
-    # Universal command interception
     msg_lower = incoming_msg.lower().strip()
-    if msg_lower in ["products", "list", "hi", "hello"] or msg_lower.startswith("exit"):
-         state = "PROCESS_COMMANDS"
+    
+    # 1. Universal interception for Links
+    if "http" in incoming_msg:
+        # Reset state and process link
+        users_collection.update_one({"phone_number": sender_phone}, {"$set": {"state": "NEW", "pending_product_url": None}})
+        return {"response": "Got the link! 🔗 Please wait a moment while I fetch the details and graphs...", "action": "PROCESS_NEW_LINK", "url": incoming_msg, "phone": sender_phone}
 
-    if state == "NEW":
+    # 2. Universal interception for Greetings
+    if msg_lower in ["hi", "hello"]:
         response_msg = "Hello! I am *TrackMyDeal*. Send me a valid product link to start tracking its price."
-        users_collection.update_one({"phone_number": sender_phone}, {"$set": {"state": "WAITING_FOR_LINK"}})
-        
-    elif state == "WAITING_FOR_LINK":
-        if "http" in incoming_msg:
-            # immediately acknowledge and transition back to NEW so they can add another link right after
-            users_collection.update_one({"phone_number": sender_phone}, {"$set": {"state": "NEW", "pending_product_url": None}})
-            return {"response": "Got the link! 🔗 Please wait a moment while I fetch the details and graphs...", "action": "PROCESS_NEW_LINK", "url": incoming_msg, "phone": sender_phone}
-        else:
-            response_msg = "That doesn't look like a valid link. Please send a valid product URL."
+        users_collection.update_one({"phone_number": sender_phone}, {"$set": {"state": "NEW"}})
+        return {"response": response_msg, "action": "REPLY", "phone": sender_phone}
 
-    if state == "PROCESS_COMMANDS":
-        msg_lower = incoming_msg.lower().strip()
-        if msg_lower == "products" or msg_lower == "list":
+    # 3. Handle AWAITING_PRICE_DROP_CONFIRM state
+    if state == "AWAITING_PRICE_DROP_CONFIRM":
+        if msg_lower in ['yes', 'ok', 'okay', 'y', 'yup', 'yeah', 'sure']:
             products = list(products_collection.find({"users_tracking.phone": sender_phone}))
             if products:
-                response_msg = "📋 *Your Tracked Products:*\n\n"
-                for idx, prod in enumerate(products, 1):
-                    response_msg += f"{idx}. {prod.get('title', 'Unknown Product')}\n"
-                response_msg += "\nTo stop tracking a product, reply with `exit [number]`. For example: `exit 1`"
+                response_msg = "📉 *Price Drop Status:*\n\n"
+                for prod in products:
+                    prod_id = prod["_id"]
+                    title = prod.get("title", 'Unknown Product')
+                    current_price = prod.get("price")
+                    
+                    # Get oldest price from history (first time we saw it)
+                    oldest_hist = price_history_collection.find_one({"product_id": prod_id}, sort=[("timestamp", 1)])
+                    
+                    if oldest_hist and current_price is not None:
+                        initial_price = oldest_hist.get("price")
+                        if initial_price and current_price < initial_price:
+                            diff = initial_price - current_price
+                            response_msg += f"✅ *Yes!* Your _{title}_ has dropped by *₹{diff}* since you added it! (Initial: ₹{initial_price}, Now: ₹{current_price})\n"
+                        elif initial_price and current_price > initial_price:
+                            response_msg += f"🔺 The price of _{title}_ has increased (Added at ₹{initial_price}, Now: ₹{current_price}).\n"
+                        else:
+                            response_msg += f"➖ The _{title}_ is at the same price as when you started (Added at ₹{initial_price or 'Unknown'}, Now: ₹{current_price}).\n"
+                    else:
+                        response_msg += f"➖ Not enough data yet for _{title}_.\n"
             else:
-                response_msg = "You aren't tracking any products yet. Send me a link to get started!"
-        elif msg_lower.startswith("exit"):
-            parts = msg_lower.split()
-            if len(parts) == 2 and parts[1].isdigit():
-                prod_idx = int(parts[1]) - 1
-                products = list(products_collection.find({"users_tracking.phone": sender_phone}))
-                if 0 <= prod_idx < len(products):
-                    prod_to_remove = products[prod_idx]
-                    products_collection.update_one(
-                        {"_id": prod_to_remove["_id"]},
-                        {"$pull": {"users_tracking": {"phone": sender_phone}}}
-                    )
-                    response_msg = f"Done! I've stopped tracking: {prod_to_remove.get('title', 'that product')} 👋"
-                else:
-                    response_msg = "Invalid product number. Text `products` to see the full list."
-            else:
-                 response_msg = "Please specify a number. For example: `exit 1`"
-        elif "stats" in msg_lower or "predict" in msg_lower:
-            response_msg = "The 'stats' and 'predict' tools now process automatically when you submit a new URL! Try pasting a new link to see."
-        elif msg_lower.startswith("graph"):
-            parts = msg_lower.split()
-            products = list(products_collection.find({"users_tracking.phone": sender_phone}))
-            if not products:
                 response_msg = "You aren't tracking any products yet."
-            else:
-                prod_idx = 0 # Default to first product if they just type "graph"
-                if len(parts) == 2 and parts[1].isdigit():
-                    prod_idx = int(parts[1]) - 1
-                
-                if 0 <= prod_idx < len(products):
-                    product = products[prod_idx]
-                    return {"response": f"Here is the latest trend graph for {product.get('title', 'your product')}:", "action": "GENERATE_GRAPH", "product_id": str(product['_id']), "phone": sender_phone}
-                else:
-                    response_msg = "Invalid product number. Text `products` to see your list."
-        elif "compare" in msg_lower:
-             response_msg = "Comparison engine triggers automatically when a link is sent."
-        elif msg_lower == "hi" or msg_lower == "hello":
-             response_msg = "Hello! I am *TrackMyDeal*. Send me a product link anytime to track its price."
-             users_collection.update_one({"phone_number": sender_phone}, {"$set": {"state": "WAITING_FOR_LINK"}})
+            
+            users_collection.update_one({"phone_number": sender_phone}, {"$set": {"state": "NEW"}})
+            return {"response": response_msg, "action": "REPLY", "phone": sender_phone}
         else:
-             if not response_msg:
-                 response_msg = "I'm not sure what you mean. Send 'Hi' to start tracking, or 'products' to view your tracked list."
-             users_collection.update_one({"phone_number": sender_phone}, {"$set": {"state": "NEW"}})
+             # They said something else, fall through to the invalid check
+             state = "NEW" # resetting state for fallthrough
 
+    # 4. Handle "Products" list command
+    if msg_lower in ["products", "list"]:
+        products = list(products_collection.find({"users_tracking.phone": sender_phone}))
+        if products:
+            response_msg = "📋 *Your Tracked Products:*\n\n"
+            for idx, prod in enumerate(products, 1):
+                response_msg += f"{idx}. {prod.get('title', 'Unknown Product')} - ₹{prod.get('price', 'Pending')}\n"
+            response_msg += "\nTo stop tracking a product, reply with `exit [number]`. For example: `exit 1`\n\n"
+            response_msg += "*Want to know if your product had a price drop?* (Reply 'yes' or 'ok')"
+            users_collection.update_one({"phone_number": sender_phone}, {"$set": {"state": "AWAITING_PRICE_DROP_CONFIRM"}})
+        else:
+            response_msg = "You aren't tracking any products yet. Send me a link to get started!"
+            users_collection.update_one({"phone_number": sender_phone}, {"$set": {"state": "NEW"}})
+        return {"response": response_msg, "action": "REPLY", "phone": sender_phone}
+
+    # 5. Handle "Exit" command
+    if msg_lower.startswith("exit"):
+        parts = msg_lower.split()
+        if len(parts) == 2 and parts[1].isdigit():
+            prod_idx = int(parts[1]) - 1
+            products = list(products_collection.find({"users_tracking.phone": sender_phone}))
+            if 0 <= prod_idx < len(products):
+                prod_to_remove = products[prod_idx]
+                products_collection.update_one(
+                    {"_id": prod_to_remove["_id"]},
+                    {"$pull": {"users_tracking": {"phone": sender_phone}}}
+                )
+                response_msg = f"Done! I've stopped tracking: {prod_to_remove.get('title', 'that product')} 👋\n\nType 'Products' anytime to see your list."
+            else:
+                response_msg = "Invalid product number. Text `products` to see the full list."
+        else:
+             response_msg = "Please specify a number. For example: `exit 1`"
+        users_collection.update_one({"phone_number": sender_phone}, {"$set": {"state": "NEW"}})
+        return {"response": response_msg, "action": "REPLY", "phone": sender_phone}
+
+    # 6. Fallback (Strict handler)
+    response_msg = "I don't get you. Send me your link or type 'Products' to see your tracked items."
+    users_collection.update_one({"phone_number": sender_phone}, {"$set": {"state": "NEW"}})
     return {"response": response_msg, "action": "REPLY", "phone": sender_phone}
